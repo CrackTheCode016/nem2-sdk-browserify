@@ -1,0 +1,17 @@
+{
+  "name": "generator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate-bundle": "browserify -r ./node_modules/symbol-sdk -r ./node_modules/rxjs/operators -r ./node_modules/js-sha3 -r ./node_modules/buffer -o symbol-sdk-0.17.5-alpha.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "browserify": "^16.5.1",
+    "rxjs": "^6.5.5",
+    "symbol-sdk": "^0.17.5-alpha-202004140932"
+  }
+}
