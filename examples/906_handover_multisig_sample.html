@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-<script src="nem2-sdk-0.13.1.js"></script>
+<script src="../sdk/nem2-sdk-0.13.1.js"></script>
 <script>$(function() {
 const nem = require("/node_modules/nem2-sdk");
 const rxjs = require("/node_modules/rxjs/operators");
@@ -14,6 +14,7 @@ const transactionHttp = new nem.TransactionHttp(NODE);
 
 const alice = nem.Account.generateNewAccount(nem.NetworkType.MIJIN_TEST);
 const bob   = nem.Account.generateNewAccount(nem.NetworkType.MIJIN_TEST);
+const carol = nem.Account.generateNewAccount(nem.NetworkType.MIJIN_TEST);
 
 console.log("alice");
 console.log(alice.address);
@@ -45,7 +46,7 @@ listener.open().then(() => {
             console.log("==confirmed transaction(alice)==");
             if(!hasBuilt){
                 console.log("start sample program.");
-                buildMultisigAccount();
+                buildHandoverProcess();
                 hasBuilt = true;
             }
         },
@@ -55,9 +56,7 @@ listener.open().then(() => {
     listener
     .aggregateBondedAdded(alice.address)
     .pipe(
-        rxjs.filter((_) => {
-            return !_.signedByAccount(bob.publicAccount)
-        }),
+        rxjs.filter(_ => !_.signedByAccount(bob.publicAccount)),
         rxjs.map(_ => bob.signCosignatureTransaction(nem.CosignatureTransaction.create(_))),
         rxjs.mergeMap(_ => transactionHttp.announceAggregateBondedCosignature(_))
     )
@@ -65,9 +64,19 @@ listener.open().then(() => {
         console.log(">>Bob cosign in Alice partial transaction<<");
     }, err => console.error(err));
 
+    listener
+    .aggregateBondedAdded(alice.address)
+    .pipe(
+        rxjs.filter(_ => !_.signedByAccount(carol.publicAccount)),
+        rxjs.map(_ => carol.signCosignatureTransaction(nem.CosignatureTransaction.create(_))),
+        rxjs.mergeMap(_ => transactionHttp.announceAggregateBondedCosignature(_))
+    )
+    .subscribe(_ =>{ 
+        console.log(">>Carol cosign in Alice partial transaction<<");
+    }, err => console.error(err));
 });
 
-function buildMultisigAccount(){
+function buildHandoverProcess(){
 
     //マルチシグ化
     const multisigTx = nem.ModifyMultisigAccountTransaction.create(
@@ -81,10 +90,39 @@ function buildMultisigAccount(){
         nem.NetworkType.MIJIN_TEST
     );
 
+    //譲渡
+    const modifyMultisigTx = nem.ModifyMultisigAccountTransaction.create(
+        nem.Deadline.create(),
+        0,0,
+        [
+            new nem.MultisigCosignatoryModification(
+                nem.MultisigCosignatoryModificationType.Add,
+                carol,
+            ),
+            new nem.MultisigCosignatoryModification(
+                nem.MultisigCosignatoryModificationType.Remove,
+                bob,
+            ),
+
+        ],
+        nem.NetworkType.MIJIN_TEST
+    );
+
+    //代金支払い
+    const transferTx = nem.TransferTransaction.create(
+        nem.Deadline.create(),
+        bob.address,
+        [nem.NetworkCurrencyMosaic.createRelative(0)],
+        nem.PlainMessage.create('Thank you for sending alice.'),
+        nem.NetworkType.MIJIN_TEST
+    );
+
     const aggregateTx = nem.AggregateTransaction.createBonded(
         nem.Deadline.create(),
         [
             multisigTx.toAggregate(alice.publicAccount),
+            modifyMultisigTx.toAggregate(alice.publicAccount),
+            transferTx.toAggregate(carol.publicAccount),
         ],
         nem.NetworkType.MIJIN_TEST
     );

@@ -1,10 +1,10 @@
-# nem2-sdk-browserify
-this is nemtech/nem2-sdk-typescript-javascript for browser
+# symbol-sdk-browserify
+This is nemtech/symbol-sdk-typescript-javascript - but browserified!  The latest sdk will always be in the root of the repo. Previous versions are held in `sdk/`. 
 
-## how to use
+## Usage
 
 ```
-<script src="nem2-sdk-0.15.0.js"></script>
+<script src="symbol-sdk-<whatever version in the root of repo>.js"></script>
 ```
 
 ```js
@@ -34,12 +34,18 @@ const hash = sha3_256.create();
 
 ```
 
-## how to create bundle file
+## Generating Bundle File Yourself
 
-if you want to create bundle file yourself,
+If you want to create bundle file yourself,
 
 ```
-npm install browserify
-npm install nem2-sdk@0.15.0
- browserify -r ./node_modules/nem2-sdk -r ./node_modules/rxjs/operators -r ./node_modules/js-sha3 -r ./node_modules/buffer -o nem2-sdk-0.15.0.js
+cd generator/
+npm install
+npm run generate-bundle
+```
+
+If you wish to compile a different version, be sure to replace the version of `symbol-sdk`, then run the above commands once more: 
+
+```
+"symbol-sdk": "Your version here"
 ```

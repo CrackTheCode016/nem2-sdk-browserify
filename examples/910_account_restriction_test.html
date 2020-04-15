@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">
 <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-<script src="nem2-sdk-0.13.1.js"></script>
+<script src="../sdk/nem2-sdk-0.13.1.js"></script>
 <script>
 const nem = require("/node_modules/nem2-sdk");
 const rxjs = require("/node_modules/rxjs/operators");
@@ -51,31 +51,6 @@ listener.open().then(() => {
 
 function buildProcess(){
 
-    //モザイク作成
-    const nonce = nem.MosaicNonce.createRandom();
-    const mosaicDefTx = nem.MosaicDefinitionTransaction.create(
-        nem.Deadline.create(),
-        nonce,
-        nem.MosaicId.createFromNonce(nonce, alice.publicAccount),
-        nem.MosaicProperties.create({
-            supplyMutable: true,
-            transferable: true,
-            divisibility: 0,
-            duration: nem.UInt64.fromUint(1)
-        }),
-        nem.NetworkType.MIJIN_TEST
-    );
-
-    //モザイク変更
-    const mosaicChangeTx = nem.MosaicSupplyChangeTransaction.create(
-        nem.Deadline.create(),
-        mosaicDefTx.mosaicId,
-        nem.MosaicSupplyType.Increase,
-        nem.UInt64.fromUint(1000000),
-        nem.NetworkType.MIJIN_TEST
-    );
-
-    //Bobにフィルター作成
     const operationFilter = nem.AccountRestrictionModification.createForOperation(
         nem.RestrictionModificationType.Add,
         nem.TransactionType.TRANSFER ,
@@ -83,76 +58,41 @@ function buildProcess(){
 
     const operationTx = nem.AccountRestrictionTransaction.createOperationRestrictionModificationTransaction(
         nem.Deadline.create(),
-        nem.RestrictionType.BlockTransaction,
+        nem.RestrictionType.AllowTransaction,
         [operationFilter],
         nem.NetworkType.MIJIN_TEST,
     );
-
-    //
-    const mosaicFilter = nem.AccountRestrictionModification.createForMosaic(
-        nem.RestrictionModificationType.Add,
-        nem.NetworkCurrencyMosaic.NAMESPACE_ID,
-    );
-
-    const mosaicTx = nem.AccountRestrictionTransaction.createMosaicRestrictionModificationTransaction(
-        nem.Deadline.create(),
-        nem.RestrictionType.BlockMosaic, //nem.RestrictionType.AllowMosaic,
-        [mosaicFilter],
-        nem.NetworkType.MIJIN_TEST,
-    );
-
 
     //代金支払い
     const sendTransferTx = nem.TransferTransaction.create(
         nem.Deadline.create(),
         bob.address,
         [
-//          nem.NetworkCurrencyMosaic.createRelative(0),
-            new nem.Mosaic(mosaicDefTx.mosaicId , nem.UInt64.fromUint(1000))
+            nem.NetworkCurrencyMosaic.createRelative(0),
         ],
         nem.PlainMessage.create('send mosaic'),
         nem.NetworkType.MIJIN_TEST
     );
 
-    const backTransferTx = nem.TransferTransaction.create(
-        nem.Deadline.create(),
-        alice.address,
-        [
-//          nem.NetworkCurrencyMosaic.createRelative(0),
-            new nem.Mosaic(mosaicDefTx.mosaicId , nem.UInt64.fromUint(1000))
-        ],
-        nem.PlainMessage.create('back mosaic'),
-        nem.NetworkType.MIJIN_TEST
-    );
 
     //集約
     const aggregateTx = nem.AggregateTransaction.createComplete(
         nem.Deadline.create(),
         [
-            mosaicDefTx.toAggregate(alice.publicAccount),
-            mosaicChangeTx.toAggregate(alice.publicAccount),
-            operationTx.toAggregate(bob.publicAccount),
-            mosaicTx.toAggregate(bob.publicAccount),
+            operationTx.toAggregate(alice.publicAccount),
             sendTransferTx.toAggregate(alice.publicAccount),
-            backTransferTx.toAggregate(bob.publicAccount)
         ],
         nem.NetworkType.MIJIN_TEST,
         []
     );
 
-    const signedTx =  alice.signTransactionWithCosignatories(
-        aggregateTx,
-        [bob],
-        GENERATION_HASH,
-    );
-
-//  const signedTx = alice.sign(aggregateTx,GENERATION_HASH);
+    const signedTx = alice.sign(aggregateTx,GENERATION_HASH);
     console.log(signedTx);
 
     const txHttp = new nem.TransactionHttp(NODE);
     txHttp
     .announce(signedTx)
-    .subscribe(x =>{
+    .subscribe(x =>{ 
         console.log(x)
         $('#items2-ctrl ul').append('<li><a target="_blank" href="' + NODE + '/transaction/' + signedTx.hash + '/status">' + signedTx.hash + '</a></li>');
         $('#items3-ctrl ul').append('<li><a target="_blank" href="' + NODE + '/transaction/' + signedTx.hash + '">' + signedTx.hash + '</a></li>');

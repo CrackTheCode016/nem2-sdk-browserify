@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-<script src="nem2-sdk-0.13.1.js"></script>
+<script src="../sdk/nem2-sdk-0.13.1.js"></script>
 <script>$(function() {
 const nem = require("/node_modules/nem2-sdk");
 
@@ -26,6 +26,8 @@ const GENERATION_HASH = "453052FDC4EB23BF0D7280C103F7797133A633B68A81986165B76FC
 const transactionHttp = new nem.TransactionHttp(NODE);
 
 const alice = nem.Account.generateNewAccount(nem.NetworkType.MIJIN_TEST);
+const bob   = nem.Account.generateNewAccount(nem.NetworkType.MIJIN_TEST);
+
 console.log(alice.address);
 console.log(alice.privateKey);
 
@@ -47,12 +49,12 @@ listener.open().then(() => {
     .subscribe(
         function(_){
             listener.close();
-            buildMosaic();
+            buildNamespacedMultisigAccount();
         },
         err => console.error(err));
 });
 
-function buildMosaic(){
+function buildNamespacedMultisigAccount(){
 
     //ネームスペース作成
     const namespaceTx = nem.RegisterNamespaceTransaction.createRootNamespace(
@@ -62,36 +64,25 @@ function buildMosaic(){
         nem.NetworkType.MIJIN_TEST
     );
 
-    //モザイク作成
-    const nonce = nem.MosaicNonce.createRandom();
-    const mosaicDefTx = nem.MosaicDefinitionTransaction.create(
-        nem.Deadline.create(),
-        nonce,
-        nem.MosaicId.createFromNonce(nonce, alice.publicAccount),
-        nem.MosaicProperties.create({
-            supplyMutable: true,
-            transferable: true,
-            divisibility: 0,
-            duration: nem.UInt64.fromUint(1)
-        }),
-        nem.NetworkType.MIJIN_TEST
-    );
-
-    //モザイク変更
-    const mosaicChangeTx = nem.MosaicSupplyChangeTransaction.create(
-        nem.Deadline.create(),
-        mosaicDefTx.mosaicId,
-        nem.MosaicSupplyType.Increase,
-        nem.UInt64.fromUint(1000000),
-        nem.NetworkType.MIJIN_TEST
-    );
-
-    //モザイクとネームスペースのリンク
-    const mosaicAliasTx = nem.AliasTransaction.createForMosaic(
+    //アカウントとネームスペースのリンク
+    const accountAliasTx = nem.AliasTransaction.createForAddress(
         nem.Deadline.create(),
         nem.AliasActionType.Link,
         namespaceTx.namespaceId,
-        mosaicDefTx.mosaicId,
+        alice.address,
+        nem.NetworkType.MIJIN_TEST
+    );
+
+    //マルチシグ化
+    const multisigTx = nem.ModifyMultisigAccountTransaction.create(
+        nem.Deadline.create(),
+        1,1,
+        [
+            new nem.MultisigCosignatoryModification(
+                nem.MultisigCosignatoryModificationType.Add,
+                bob,
+            )
+        ],
         nem.NetworkType.MIJIN_TEST
     );
 
@@ -99,17 +90,20 @@ function buildMosaic(){
         nem.Deadline.create(),
         [
             namespaceTx.toAggregate(alice.publicAccount),
-            mosaicDefTx.toAggregate(alice.publicAccount),
-            mosaicChangeTx.toAggregate(alice.publicAccount),
-            mosaicAliasTx.toAggregate(alice.publicAccount),
+            accountAliasTx.toAggregate(alice.publicAccount),
+            multisigTx.toAggregate(alice.publicAccount),
         ],
         nem.NetworkType.MIJIN_TEST,
         []
     );
 
-    const signedTransaction = alice.sign(aggregateTransaction, GENERATION_HASH);
-    console.log(signedTransaction);
+    const signedTransaction =  alice.signTransactionWithCosignatories(
+        aggregateTransaction,
+        [bob],
+        GENERATION_HASH,
+    );
 
+    console.log(signedTransaction);
     transactionHttp
     .announce(signedTransaction)
     .subscribe(x => {
@@ -127,6 +121,5 @@ function buildMosaic(){
     <h1>sample</h1>
     <h3>state確認</h3><div id="items2-ctrl"><ul></ul></div>
     <h3>confirmed確認</h3><div id="items3-ctrl"><ul></ul></div>
-    <div id="btn-ctrl"><button>送信</button></div>
 </body>
 </html>
